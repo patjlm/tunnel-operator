@@ -1,0 +1,9 @@
+domain: zeeweb.xyz
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: tunnel-operator
+repo: github.com/patjlm/tunnel-operator
+version: "3"
