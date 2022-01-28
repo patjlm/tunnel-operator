@@ -174,7 +174,6 @@ spec:
             required:
             - accountid
             - conditions
-            - hostnames
             - tunnelid
             type: object
         type: object

@@ -18,14 +18,11 @@ package controllers
 
 import (
 	"context"
-	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
-	"math/rand"
-	"os"
-	"time"
 
 	"gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -38,7 +35,6 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/cloudflare/cloudflare-go"
 	tunnelv1alpha1 "github.com/patjlm/tunnel-operator/api/v1alpha1"
 )
 
@@ -79,7 +75,9 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	api, err := r.cloudflareApi()
+	CF := Cloudflare{ctx: ctx, log: log}
+	api, err := CF.Api()
+	// api, err := r.cloudflareApi()
 	if err != nil {
 		log.Error(err, "could not initiate cloudflare client")
 		return ctrl.Result{}, err
@@ -100,6 +98,11 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			// Run finalization logic for Tunnel. If the
 			// finalization logic fails, don't remove the finalizer so
 			// that we can retry during the next reconciliation.
+			for _, hostname := range tunnel.Status.IngressHostnames {
+				if err := CF.DeleteDNSRecords("CNAME", hostname); err != nil {
+					return reconcile.Result{}, err
+				}
+			}
 			log.Info("deleting tunnel " + tunnel.Status.TunnelID)
 			if err := api.DeleteArgoTunnel(ctx, api.AccountID, tunnel.Status.TunnelID); err != nil {
 				return ctrl.Result{}, err
@@ -139,9 +142,9 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 	if !exists {
-		secret := randomSecretB64(32)
+		secretB64 := CF.NewTunnelSecretB64()
 		log.Info("creating cloudflare tunnel " + tunnel.Spec.Name)
-		cfTunnel, err := api.CreateArgoTunnel(ctx, api.AccountID, tunnel.Spec.Name, secret)
+		cfTunnel, err := api.CreateArgoTunnel(ctx, api.AccountID, tunnel.Spec.Name, secretB64)
 		if err != nil {
 			log.Error(err, "Failed to create cloudflare tunnel")
 			apimeta.SetStatusCondition(&tunnel.Status.Conditions,
@@ -167,7 +170,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				Reason:  tunnelv1alpha1.TunnelConditionCreatedSuccessReason,
 				Message: "Cloudflare tunnel created successfully with ID " + cfTunnel.ID,
 			})
-		s := r.newTunnelSecret(tunnel, secret)
+		s := r.newTunnelSecret(tunnel, secretB64)
 		if err := r.Create(ctx, s); err != nil {
 			log.Error(err, "Failed to create tunnel secret")
 			log.Info("deleting cloudflare tunnel " + tunnel.Status.TunnelID)
@@ -199,33 +202,11 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if tunnel.Spec.Ingress != nil {
-		proxied := true
-		zoneName := os.Getenv("CLOUDFLARE_ZONE_NAME")
-		zoneID, _ := api.ZoneIDByName(zoneName)
 		// Create missing DNS records
 		for _, ingress := range *tunnel.Spec.Ingress {
-			tpl := cloudflare.DNSRecord{Name: ingress.HostName, Type: "CNAME"}
-			records, err := api.DNSRecords(context.Background(), zoneID, tpl)
-			if err != nil {
-				log.Error(err, "failed to retrieve CNAME DNS recods from zone "+zoneName)
-				return ctrl.Result{}, err
+			if err := CF.CreateTunnelDNSRecord(ingress.HostName, tunnel); err != nil {
+				return reconcile.Result{}, err
 			}
-			if len(records) == 0 {
-				log.Info("creating cloudflare CNAME record for " + ingress.HostName)
-				_, err := api.CreateDNSRecord(ctx, zoneID, cloudflare.DNSRecord{
-					Type:    "CNAME",
-					Name:    ingress.HostName,
-					Proxied: &proxied,
-					Content: tunnelID + ".cfargotunnel.com",
-				})
-				if err != nil {
-					log.Error(err, "failed to created DNS record")
-					return reconcile.Result{}, err
-				}
-			}
-			// else if not good target or not proxied {
-			// 	api.UpdateDNSRecord(ctx)
-			// }
 			recordedInStatus := inSlice(ingress.HostName, tunnel.Status.IngressHostnames)
 			if !recordedInStatus {
 				tunnel.Status.IngressHostnames = append(tunnel.Status.IngressHostnames, ingress.HostName)
@@ -244,15 +225,8 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				}
 			}
 			if !found {
-				tpl := cloudflare.DNSRecord{Type: "CNAME", Name: statusHostname}
-				records, err := api.DNSRecords(ctx, zoneID, tpl)
-				if err != nil {
-					log.Error(err, "failed to list DNS records matching "+statusHostname)
+				if err := CF.DeleteDNSRecords("CNAME", statusHostname); err != nil {
 					return reconcile.Result{}, err
-				}
-				for _, record := range records {
-					log.Info("deleting DNS CNAME record " + statusHostname)
-					api.DeleteDNSRecord(ctx, zoneID, record.ID)
 				}
 				updatedHostnames = true
 			} else {
@@ -280,18 +254,6 @@ func inSlice(str string, slice []string) bool {
 		}
 	}
 	return false
-}
-
-func (r *TunnelReconciler) cloudflareApi() (*cloudflare.API, error) {
-	token := os.Getenv("CLOUDFLARE_API_TOKEN")
-	if token == "" {
-		return nil, errors.New("missing environment variable CLOUDFLARE_API_TOKEN")
-	}
-	api, err := cloudflare.NewWithAPIToken(token)
-	if api.AccountID == "" {
-		api.AccountID = os.Getenv("CLOUDFLARE_ACCOUNT_ID")
-	}
-	return api, err
 }
 
 func (r *TunnelReconciler) baseTunnelSecret(t *tunnelv1alpha1.Tunnel) *corev1.Secret {
@@ -322,11 +284,7 @@ func (r *TunnelReconciler) newTunnelSecret(t *tunnelv1alpha1.Tunnel, secretB64 s
 		"TunnelSecret": secretB64,
 	}
 	credentialsJson, _ := json.Marshal(credentials)
-	// 	configYaml := `---
-	// ingress:
-	// - service: http_status:404
-	// tunnel: ` + t.Status.TunnelID
-	configYaml, _ := yaml.Marshal(r.tunnelConfig(t))
+	configYaml, _ := yaml.Marshal(tunnelConfig(t))
 	secret.StringData = map[string]string{
 		"credentials.json": string(credentialsJson),
 		"config.yaml":      string(configYaml),
@@ -341,7 +299,7 @@ func (r *TunnelReconciler) updateTunnelSecretConfig(ctx context.Context, t *tunn
 	if err := r.Get(ctx, objectKey, secret); err != nil {
 		return errors.New("failed to retrieve secret: " + err.Error())
 	}
-	configYaml, _ := yaml.Marshal(r.tunnelConfig(t))
+	configYaml, _ := yaml.Marshal(tunnelConfig(t))
 	secret.Data["config.yaml"] = configYaml
 	if err := r.Update(ctx, secret); err != nil {
 		return errors.New("failed to update secret: " + err.Error())
@@ -349,40 +307,12 @@ func (r *TunnelReconciler) updateTunnelSecretConfig(ctx context.Context, t *tunn
 	return nil
 }
 
-func randomSecretB64(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	chars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()-_=+")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = chars[rand.Intn(len(chars))]
-	}
-	return b64.StdEncoding.EncodeToString([]byte(string(b)))
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tunnelv1alpha1.Tunnel{}).
 		Owns(&corev1.Secret{}).
+		Owns(&appsv1.Deployment{}).
 		// WithOptions(controller.Options{MaxConcurrentReconciles: 2}).
 		Complete(r)
-}
-
-type TunnelConfig struct {
-	Tunnel  string                          `yaml:"tunnel"`
-	Ingress *[]tunnelv1alpha1.TunnelIngress `yaml:"ingress"`
-}
-
-func (r *TunnelReconciler) tunnelConfig(t *tunnelv1alpha1.Tunnel) *TunnelConfig {
-	ingresses := []tunnelv1alpha1.TunnelIngress{}
-	if t.Spec.Ingress != nil {
-		ingresses = append(ingresses, *t.Spec.Ingress...)
-	}
-	defaultIngress := "http_status:404"
-	ingresses = append(ingresses, tunnelv1alpha1.TunnelIngress{Service: &defaultIngress})
-	config := &TunnelConfig{
-		Tunnel:  t.Status.TunnelID,
-		Ingress: &ingresses,
-	}
-	return config
 }

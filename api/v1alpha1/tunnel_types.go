@@ -69,7 +69,7 @@ type TunnelStatus struct {
 	Conditions []metav1.Condition `json:"conditions"`
 
 	// IngressHostnames lists the hostnames recorded in DNS
-	IngressHostnames []string `json:"hostnames"`
+	IngressHostnames []string `json:"hostnames,omitempty"`
 }
 
 //+kubebuilder:object:root=true
