@@ -67,6 +67,8 @@ spec:
               name:
                 description: Name is the name of the tunnel to create
                 type: string
+              run:
+                type: boolean
               secret:
                 description: TunnelSecret is a reference to the secret to create with
                   the tunnel information

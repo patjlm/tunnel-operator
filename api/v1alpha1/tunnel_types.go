@@ -28,6 +28,10 @@ const (
 	TunnelConditionCreatedSuccessReason string = "CreationSucceeded"
 )
 
+const (
+	TunnelDefaultRun bool = false
+)
+
 type TunnelIngress struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -53,6 +57,8 @@ type TunnelSpec struct {
 	TunnelSecret *corev1.SecretReference `json:"secret,omitempty"`
 
 	Ingress *[]TunnelIngress `json:"ingress,omitempty"`
+
+	Run bool `json:"run,omitempty"`
 }
 
 // TunnelStatus defines the observed state of Tunnel

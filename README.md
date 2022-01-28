@@ -20,6 +20,7 @@ spec:
   # secret:
   #   name: mysecret
   #   namepsace: mynamespace
+  run: true
   ingress:
   - hostname: example1.zeeweb.xyz
     service: tcp://localhost:10000
@@ -40,7 +41,10 @@ status:
 ```
 The operator creates a secret (by default named after the `Tunnel` resource) containing the necessary files to execute `cloudflared run`: `credentials.json` and `config.yaml`
 
+With `run: true`, the operator will start a 1-replica deployment executing `cloudflared run`, providing ingress access to the cluster
 
 ## TODO
-* implement a `run: bool` field in the `Tunnel`. When this field is set, run a deployment which executed `cloudflared run` for this tunnel, allowing ingress traffic in Kubernetes.
+* improve the `run: bool` feature:
+  * run custom images, avoid downloading cloudflared at runtime, ...
+* support more `config.yaml` features (i think i saw one to trust self-signed certs on the backend service, useful for internal kubernetes services)
 * implement a `TunnelAccess` custom resource which can be used to run a `cloudflared access` deployment in order to access a remote tunnel TCP endpoint.

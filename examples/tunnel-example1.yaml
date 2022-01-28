@@ -9,8 +9,11 @@ spec:
   # secret:
   #   name: mysecret
   #   namepsace: mynamespace
+  run: true
   ingress:
   - hostname: example1.zeeweb.xyz
     service: tcp://localhost:10000
+  - hostname: kd.zeeweb.xyz
+    service: https://kubernetes.default
   # - hostname: example12.zeeweb.xyz
   #   service: tcp://localhost:10000
