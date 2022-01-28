@@ -1,0 +1,6 @@
+apiVersion: tunnel.zeeweb.xyz/v1alpha1
+kind: Tunnel
+metadata:
+  name: example-same-name
+spec:
+  name: example1

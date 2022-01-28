@@ -1,0 +1,11 @@
+apiVersion: tunnel.zeeweb.xyz/v1alpha1
+kind: Tunnel
+metadata:
+  name: example1
+spec:
+  name: example1
+  ingress:
+  - hostname: example1.zeeweb.xyz
+    service: tcp://localhost:10000
+  # - hostname: example12.zeeweb.xyz
+  #   service: tcp://localhost:10000

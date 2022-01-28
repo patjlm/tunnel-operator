@@ -17,25 +17,59 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	TunnelConditionCreatedType          string = "Created"
+	TunnelConditionCreatedFailedReason  string = "CreationFailed"
+	TunnelConditionCreatedExistsReason  string = "AlreadyExists"
+	TunnelConditionCreatedSuccessReason string = "CreationSucceeded"
+)
 
-// TunnelSpec defines the desired state of Tunnel
-type TunnelSpec struct {
+type TunnelIngress struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Tunnel. Edit tunnel_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// HostName is the hostname that can be used to reach this tunnel ingress
+	HostName string `json:"hostname" yaml:"hostname,omitempty"`
+
+	// Service represents the backend service URL reached through this tunnel ingress
+	Service *string `json:"service,omitempty" yaml:"service,omitempty"`
+}
+
+// TunnelSpec defines the desired state of Tunnel
+type TunnelSpec struct {
+	// Important: Run "make" to regenerate code after modifying this file
+
+	// Name is the name of the tunnel to create
+	Name string `json:"name"`
+
+	// AccountSecret is a reference to a secret containing the cloudflare account API token
+	AccountSecret *corev1.SecretReference `json:"accountSecret,omitempty"`
+
+	// TunnelSecret is a reference to the secret to create with the tunnel information
+	TunnelSecret *corev1.SecretReference `json:"secret,omitempty"`
+
+	Ingress *[]TunnelIngress `json:"ingress,omitempty"`
 }
 
 // TunnelStatus defines the observed state of Tunnel
 type TunnelStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	// AccountID is the ID of the cloudflare account in which this tunnel is created
+	AccountID string `json:"accountid"`
+
+	// TunnelID is the id of the created cloudflare tunnel
+	TunnelID string `json:"tunnelid"`
+
+	// Conditions represent the latest available observations of an object's state
+	Conditions []metav1.Condition `json:"conditions"`
+
+	// IngressHostnames lists the hostnames recorded in DNS
+	IngressHostnames []string `json:"hostnames"`
 }
 
 //+kubebuilder:object:root=true
