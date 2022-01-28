@@ -15,6 +15,11 @@ metadata:
 
 spec:
   name: example1
+  # output secret.
+  # cloudflared credentials.json and config.yaml will be created in this secret
+  # secret:
+  #   name: mysecret
+  #   namepsace: mynamespace
   ingress:
   - hostname: example1.zeeweb.xyz
     service: tcp://localhost:10000
@@ -33,6 +38,8 @@ status:
     status: "True"
     type: Created
 ```
+The operator creates a secret (by default named after the `Tunnel` resource) containing the necessary files to execute `cloudflared run`: `credentials.json` and `config.yaml`
+
 
 ## TODO
 * implement a `run: bool` field in the `Tunnel`. When this field is set, run a deployment which executed `cloudflared run` for this tunnel, allowing ingress traffic in Kubernetes.
