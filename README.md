@@ -47,10 +47,8 @@ status:
 ```
 The operator creates a secret (by default named after the `Tunnel` resource) containing the necessary files to execute `cloudflared run`: `credentials.json` and `config.yaml`
 
-With `run: true`, the operator will start a 1-replica deployment executing `cloudflared run`, providing ingress access to the cluster
+With `run: true`, the operator will start a deployment executing `cloudflared run`, providing ingress access to the cluster. The deployment being created can be fully customizable by specifying a `deploymentSpec` field. When not specified, the default deploymentSpec will be added to the `Tunnel` resource so the user can customize it easily.
 
 ## TODO
-* improve the `run: bool` feature:
-  * run custom images, avoid downloading cloudflared at runtime, ...
 * support more `config.yaml` features (i think i saw one to trust self-signed certs on the backend service, useful for internal kubernetes services)
 * implement a `TunnelAccess` custom resource which can be used to run a `cloudflared access` deployment in order to access a remote tunnel TCP endpoint.
