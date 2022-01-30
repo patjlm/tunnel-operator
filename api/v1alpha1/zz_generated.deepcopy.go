@@ -248,9 +248,9 @@ func (in *TunnelSpec) DeepCopyInto(out *TunnelSpec) {
 		*out = new(v1.SecretReference)
 		**out = **in
 	}
-	if in.TunnelSecret != nil {
-		in, out := &in.TunnelSecret, &out.TunnelSecret
-		*out = new(v1.SecretReference)
+	if in.TunnelSecretName != nil {
+		in, out := &in.TunnelSecretName, &out.TunnelSecretName
+		*out = new(string)
 		**out = **in
 	}
 	if in.Ingress != nil {

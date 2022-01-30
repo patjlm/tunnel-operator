@@ -6,9 +6,7 @@ spec:
   name: example1
   # output secret.
   # cloudflared credentials.json and config.yaml will be created in this secret
-  # secret:
-  #   name: mysecret
-  #   namepsace: mynamespace
+  # secretName: mysecret
   run: true
   ingress:
   - hostname: example1.zeeweb.xyz

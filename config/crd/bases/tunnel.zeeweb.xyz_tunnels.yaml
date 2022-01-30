@@ -7673,19 +7673,10 @@ spec:
                 type: string
               run:
                 type: boolean
-              secret:
+              secretName:
                 description: TunnelSecret is a reference to the secret to create with
-                  the tunnel information
-                properties:
-                  name:
-                    description: Name is unique within a namespace to reference a
-                      secret resource.
-                    type: string
-                  namespace:
-                    description: Namespace defines the space within which the secret
-                      name must be unique.
-                    type: string
-                type: object
+                  the tunnel information TunnelSecret *corev1.SecretReference `json:"secret,omitempty"`
+                type: string
             required:
             - name
             type: object

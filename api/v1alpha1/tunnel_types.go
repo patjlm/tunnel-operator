@@ -108,7 +108,8 @@ type TunnelSpec struct {
 	AccountSecret *corev1.SecretReference `json:"accountSecret,omitempty"`
 
 	// TunnelSecret is a reference to the secret to create with the tunnel information
-	TunnelSecret *corev1.SecretReference `json:"secret,omitempty"`
+	// TunnelSecret *corev1.SecretReference `json:"secret,omitempty"`
+	TunnelSecretName *string `json:"secretName,omitempty"`
 
 	Ingress *[]TunnelIngress `json:"ingress,omitempty"`
 
@@ -160,19 +161,13 @@ func init() {
 
 func (t *Tunnel) BaseTunnelSecret() *corev1.Secret {
 	name := t.Name
-	namespace := t.Namespace
-	if t.Spec.TunnelSecret != nil {
-		if t.Spec.TunnelSecret.Name != "" {
-			name = t.Spec.TunnelSecret.Name
-		}
-		if t.Spec.TunnelSecret.Namespace != "" {
-			namespace = t.Spec.TunnelSecret.Namespace
-		}
+	if t.Spec.TunnelSecretName != nil {
+		name = *t.Spec.TunnelSecretName
 	}
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: t.Namespace,
 		},
 	}
 }
@@ -182,8 +177,8 @@ func (t *Tunnel) DefaultDeploymentSpec() appsv1.DeploymentSpec {
 	var replicas int32 = 1
 	var optionalOpenshitCA = true
 	var secretName = t.Name
-	if t.Spec.TunnelSecret != nil {
-		secretName = t.Spec.TunnelSecret.Name
+	if t.Spec.TunnelSecretName != nil {
+		secretName = *t.Spec.TunnelSecretName
 	}
 
 	return appsv1.DeploymentSpec{
@@ -275,9 +270,6 @@ func (t *Tunnel) DefaultDeploymentLabelSelector() map[string]string {
 func (t *Tunnel) DeploymentForTunnelRun() *appsv1.Deployment {
 	labels := t.DefaultDeploymentLabelSelector()
 
-	baseSecret := t.BaseTunnelSecret()
-	namespace := baseSecret.Namespace
-
 	deploymentSpec := t.DefaultDeploymentSpec()
 	if t.Spec.DeploymentSpec != nil {
 		deploymentSpec = *t.Spec.DeploymentSpec
@@ -288,7 +280,7 @@ func (t *Tunnel) DeploymentForTunnelRun() *appsv1.Deployment {
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.Name,
-			Namespace: namespace,
+			Namespace: t.Namespace,
 			Labels:    labels,
 		},
 		Spec: deploymentSpec,
