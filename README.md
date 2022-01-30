@@ -27,6 +27,7 @@ spec:
   # forward kd.zeeweb.xyz to the local kubernetes cluster API
   - hostname: kd.zeeweb.xyz
     service: https://kubernetes.default
+    # all customization from https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/configuration/configuration-file/ingress are available
     originRequest:
       noTLSVerify: true
   # - hostname: example12.zeeweb.xyz
@@ -45,10 +46,12 @@ status:
     status: "True"
     type: Created
 ```
+
 The operator creates a secret (by default named after the `Tunnel` resource) containing the necessary files to execute `cloudflared run`: `credentials.json` and `config.yaml`
 
-With `run: true`, the operator will start a deployment executing `cloudflared run`, providing ingress access to the cluster. The deployment being created can be fully customizable by specifying a `deploymentSpec` field. When not specified, the default deploymentSpec will be added to the `Tunnel` resource so the user can customize it easily.
+With `run: true`, the operator will start a deployment executing `cloudflared tunnel run`, providing ingress access to the cluster. The deployment being created can be fully customizable by specifying a `deploymentSpec` field. When not specified, the default deploymentSpec will be added to the `Tunnel` resource so the user can customize it easily.
+
+The default deployment will optionally mount a configmap named `openshift-ca` into `/openshift-ca`. This allows to get access to the internal CA and validate automatically generated certs.
 
 ## TODO
-* support more `config.yaml` features (i think i saw one to trust self-signed certs on the backend service, useful for internal kubernetes services)
 * implement a `TunnelAccess` custom resource which can be used to run a `cloudflared access` deployment in order to access a remote tunnel TCP endpoint.
