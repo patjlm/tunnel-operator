@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,15 +34,65 @@ const (
 	TunnelDefaultRun bool = false
 )
 
+// OriginRequestConfig is a set of optional fields that users may set to
+// customize how cloudflared sends requests to origin services. It is used to set
+// up general config that apply to all rules, and also, specific per-rule
+// config.
+// Note: To specify a time.Duration in go-yaml, use e.g. "3s" or "24h".
+type OriginRequestConfig struct {
+	// HTTP proxy timeout for establishing a new connection
+	ConnectTimeout *time.Duration `json:"connectTimeout,omitempty" yaml:"connectTimeout,omitempty"`
+	// HTTP proxy timeout for completing a TLS handshake
+	TLSTimeout *time.Duration `json:"tlsTimeout,omitempty" yaml:"tlsTimeout,omitempty"`
+	// HTTP proxy TCP keepalive duration
+	TCPKeepAlive *time.Duration `json:"tcpKeepAlive,omitempty" yaml:"tcpKeepAlive,omitempty"`
+	// HTTP proxy should disable "happy eyeballs" for IPv4/v6 fallback
+	NoHappyEyeballs *bool `json:"noHappyEyeballs,omitempty" yaml:"noHappyEyeballs,omitempty"`
+	// HTTP proxy maximum keepalive connection pool size
+	KeepAliveConnections *int `json:"keepAliveConnections,omitempty" yaml:"keepAliveConnections,omitempty"`
+	// HTTP proxy timeout for closing an idle connection
+	KeepAliveTimeout *time.Duration `json:"keepAliveTimeout,omitempty" yaml:"keepAliveTimeout,omitempty"`
+	// Sets the HTTP Host header for the local webserver.
+	HTTPHostHeader *string `json:"httpHostHeader,omitempty" yaml:"httpHostHeader,omitempty"`
+	// Hostname on the origin server certificate.
+	OriginServerName *string `json:"originServerName,omitempty" yaml:"originServerName,omitempty"`
+	// Path to the CA for the certificate of your origin.
+	// This option should be used only if your certificate is not signed by Cloudflare.
+	CAPool *string `json:"caPool,omitempty" yaml:"caPool,omitempty"`
+	// Disables TLS verification of the certificate presented by your origin.
+	// Will allow any certificate from the origin to be accepted.
+	// Note: The connection from your machine to Cloudflare's Edge is still encrypted.
+	NoTLSVerify *bool `json:"noTLSVerify,omitempty" yaml:"noTLSVerify,omitempty"`
+	// Disables chunked transfer encoding.
+	// Useful if you are running a WSGI server.
+	DisableChunkedEncoding *bool `json:"disableChunkedEncoding,omitempty" yaml:"disableChunkedEncoding,omitempty"`
+	// Runs as jump host
+	BastionMode *bool `json:"bastionMode,omitempty" yaml:"bastionMode,omitempty"`
+	// Listen address for the proxy.
+	ProxyAddress *string `json:"proxyAddress,omitempty" yaml:"proxyAddress,omitempty"`
+	// Listen port for the proxy.
+	ProxyPort *uint `json:"proxyPort,omitempty" yaml:"proxyPort,omitempty"`
+	// Valid options are 'socks' or empty.
+	ProxyType *string `json:"proxyType,omitempty" yaml:"proxyType,omitempty"`
+	// IP rules for the proxy service
+	IPRules []IngressIPRule `json:"ipRules,omitempty" yaml:"ipRules,omitempty"`
+}
+
+type IngressIPRule struct {
+	Prefix *string `json:"prefix,omitempty" yaml:"prefix,omitempty"`
+	Ports  []int   `json:"ports,omitempty" yaml:"ports,omitempty"`
+	Allow  bool    `json:"allow,omitempty" yaml:"allow,omitempty"`
+}
+
 type TunnelIngress struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// HostName is the hostname that can be used to reach this tunnel ingress
-	HostName string `json:"hostname" yaml:"hostname,omitempty"`
-
-	// Service represents the backend service URL reached through this tunnel ingress
-	Service *string `json:"service,omitempty" yaml:"service,omitempty"`
+	HostName      string               `json:"hostname,omitempty" yaml:"hostname,omitempty"`
+	Path          *string              `json:"path,omitempty" yaml:"path,omitempty"`
+	Service       *string              `json:"service,omitempty" yaml:"service,omitempty"`
+	OriginRequest *OriginRequestConfig `json:"originRequest,omitempty" yaml:"originRequest,omitempty"`
 }
 
 // TunnelSpec defines the desired state of Tunnel

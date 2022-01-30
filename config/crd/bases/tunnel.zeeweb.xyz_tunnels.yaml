@@ -56,12 +56,89 @@ spec:
                       description: HostName is the hostname that can be used to reach
                         this tunnel ingress
                       type: string
-                    service:
-                      description: Service represents the backend service URL reached
-                        through this tunnel ingress
+                    originRequest:
+                      description: 'OriginRequestConfig is a set of optional fields
+                        that users may set to customize how cloudflared sends requests
+                        to origin services. It is used to set up general config that
+                        apply to all rules, and also, specific per-rule config. Note:
+                        To specify a time.Duration in go-yaml, use e.g. "3s" or "24h".'
+                      properties:
+                        bastionMode:
+                          description: Runs as jump host
+                          type: boolean
+                        caPool:
+                          description: Path to the CA for the certificate of your
+                            origin. This option should be used only if your certificate
+                            is not signed by Cloudflare.
+                          type: string
+                        connectTimeout:
+                          description: HTTP proxy timeout for establishing a new connection
+                          format: int64
+                          type: integer
+                        disableChunkedEncoding:
+                          description: Disables chunked transfer encoding. Useful
+                            if you are running a WSGI server.
+                          type: boolean
+                        httpHostHeader:
+                          description: Sets the HTTP Host header for the local webserver.
+                          type: string
+                        ipRules:
+                          description: IP rules for the proxy service
+                          items:
+                            properties:
+                              allow:
+                                type: boolean
+                              ports:
+                                items:
+                                  type: integer
+                                type: array
+                              prefix:
+                                type: string
+                            type: object
+                          type: array
+                        keepAliveConnections:
+                          description: HTTP proxy maximum keepalive connection pool
+                            size
+                          type: integer
+                        keepAliveTimeout:
+                          description: HTTP proxy timeout for closing an idle connection
+                          format: int64
+                          type: integer
+                        noHappyEyeballs:
+                          description: HTTP proxy should disable "happy eyeballs"
+                            for IPv4/v6 fallback
+                          type: boolean
+                        noTLSVerify:
+                          description: 'Disables TLS verification of the certificate
+                            presented by your origin. Will allow any certificate from
+                            the origin to be accepted. Note: The connection from your
+                            machine to Cloudflare''s Edge is still encrypted.'
+                          type: boolean
+                        originServerName:
+                          description: Hostname on the origin server certificate.
+                          type: string
+                        proxyAddress:
+                          description: Listen address for the proxy.
+                          type: string
+                        proxyPort:
+                          description: Listen port for the proxy.
+                          type: integer
+                        proxyType:
+                          description: Valid options are 'socks' or empty.
+                          type: string
+                        tcpKeepAlive:
+                          description: HTTP proxy TCP keepalive duration
+                          format: int64
+                          type: integer
+                        tlsTimeout:
+                          description: HTTP proxy timeout for completing a TLS handshake
+                          format: int64
+                          type: integer
+                      type: object
+                    path:
                       type: string
-                  required:
-                  - hostname
+                    service:
+                      type: string
                   type: object
                 type: array
               name:

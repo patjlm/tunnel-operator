@@ -24,6 +24,11 @@ spec:
   ingress:
   - hostname: example1.zeeweb.xyz
     service: tcp://localhost:10000
+  # forward kd.zeeweb.xyz to the local kubernetes cluster API
+  - hostname: kd.zeeweb.xyz
+    service: https://kubernetes.default
+    originRequest:
+      noTLSVerify: true
   # - hostname: example12.zeeweb.xyz
   #   service: tcp://localhost:10000
 
@@ -32,6 +37,7 @@ status:
   tunnelid: yyy-zzz
   hostnames:
     - example1.zeeweb.xyz
+    - kd.zeeweb.xyz
   conditions:
   - lastTransitionTime: "2022-01-28T16:09:46Z"
     message: Cloudflare tunnel created successfully with ID yyy-zzz

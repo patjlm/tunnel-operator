@@ -15,5 +15,7 @@ spec:
     service: tcp://localhost:10000
   - hostname: kd.zeeweb.xyz
     service: https://kubernetes.default
+    originRequest:
+      noTLSVerify: true
   # - hostname: example12.zeeweb.xyz
   #   service: tcp://localhost:10000
