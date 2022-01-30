@@ -259,6 +259,13 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if tunnel.Spec.Run {
+		// Set the deploymentSpec in the Tunnel resource so it gets easy to be updated
+		if tunnel.Spec.DeploymentSpec == nil {
+			spec := tunnel.DefaultDeploymentSpec()
+			tunnel.Spec.DeploymentSpec = &spec
+			err := r.Update(ctx, tunnel)
+			return reconcile.Result{}, err
+		}
 		found := &appsv1.Deployment{}
 		err = r.Get(ctx, req.NamespacedName, found)
 		if err != nil && apierrors.IsNotFound(err) {
@@ -281,13 +288,26 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			dep := r.deploymentForTunnelRun(tunnel)
 			err := r.Update(ctx, dep)
 			if err != nil {
-				log.Error(err, "Failed to update Deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+				log.Error(err, "failed to update Deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 				return ctrl.Result{}, err
 			}
 			// Ask to requeue after 1 minute in order to give enough time for the
 			// pods be created on the cluster side and the operand be able
 			// to do the next update step accurately.
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
+	} else {
+		found := &appsv1.Deployment{}
+		err = r.Get(ctx, req.NamespacedName, found)
+		if err != nil && !apierrors.IsNotFound(err) {
+			log.Error(err, "failed to get Deployment")
+			return reconcile.Result{}, err
+		}
+		if err == nil {
+			log.Info("deleting deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+			if err = r.Delete(ctx, found); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
@@ -304,27 +324,8 @@ func inSlice(str string, slice []string) bool {
 	return false
 }
 
-func (r *TunnelReconciler) baseTunnelSecret(t *tunnelv1alpha1.Tunnel) *corev1.Secret {
-	name := t.Name
-	namespace := t.Namespace
-	if t.Spec.TunnelSecret != nil {
-		if t.Spec.TunnelSecret.Name != "" {
-			name = t.Spec.TunnelSecret.Name
-		}
-		if t.Spec.TunnelSecret.Namespace != "" {
-			namespace = t.Spec.TunnelSecret.Namespace
-		}
-	}
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-	}
-}
-
 func (r *TunnelReconciler) newTunnelSecret(t *tunnelv1alpha1.Tunnel, secretB64 string) *corev1.Secret {
-	secret := r.baseTunnelSecret(t)
+	secret := t.BaseTunnelSecret()
 	credentials := map[string]string{
 		"AccountTag":   t.Status.AccountID,
 		"TunnelID":     t.Status.TunnelID,
@@ -342,7 +343,7 @@ func (r *TunnelReconciler) newTunnelSecret(t *tunnelv1alpha1.Tunnel, secretB64 s
 }
 
 func (r *TunnelReconciler) updateTunnelSecretConfig(ctx context.Context, t *tunnelv1alpha1.Tunnel) error {
-	secret := r.baseTunnelSecret(t)
+	secret := t.BaseTunnelSecret()
 	objectKey := client.ObjectKey{Namespace: secret.Namespace, Name: secret.Name}
 	if err := r.Get(ctx, objectKey, secret); err != nil {
 		return errors.New("failed to retrieve secret: " + err.Error())
@@ -356,57 +357,7 @@ func (r *TunnelReconciler) updateTunnelSecretConfig(ctx context.Context, t *tunn
 }
 
 func (r *TunnelReconciler) deploymentForTunnelRun(t *tunnelv1alpha1.Tunnel) *appsv1.Deployment {
-	ls := map[string]string{"app": "cloudflared-run", "tunnel-id": t.Status.TunnelID}
-	var replicas int32 = 1
-
-	baseSecret := r.baseTunnelSecret(t)
-	namespace := baseSecret.Namespace
-	secretName := baseSecret.Name
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      t.Name,
-			Namespace: namespace,
-			Labels:    ls,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						// TODO a bit of customization would be needed here..
-						// Image: "ubi8/ubi-minimal:latest",
-						Image: "redhat/ubi8-minimal",
-						Name:  "cloudflared",
-						Command: []string{"bash", "-c", `
-curl -sSL -o /opt/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-chmod +x /opt/cloudflared
-/opt/cloudflared tunnel --config /config/config.yaml run --credentials-file config/credentials.json ${TUNNEL_ID}`},
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "cloudflared-config",
-							MountPath: "/config",
-							ReadOnly:  true,
-						}},
-					}},
-					Volumes: []corev1.Volume{{
-						Name: "cloudflared-config",
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: secretName,
-							},
-						},
-					}},
-				},
-			},
-		},
-	}
-	// Set Memcached instance as the owner and controller
+	dep := t.DeploymentForTunnelRun()
 	ctrl.SetControllerReference(t, dep, r.Scheme)
 	return dep
 }

@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -34,6 +35,7 @@ const (
 	TunnelDefaultRun bool = false
 )
 
+// copied from https://github.com/cloudflare/cloudflared/blob/master/config/configuration.go
 // OriginRequestConfig is a set of optional fields that users may set to
 // customize how cloudflared sends requests to origin services. It is used to set
 // up general config that apply to all rules, and also, specific per-rule
@@ -110,7 +112,8 @@ type TunnelSpec struct {
 
 	Ingress *[]TunnelIngress `json:"ingress,omitempty"`
 
-	Run bool `json:"run,omitempty"`
+	Run            bool                   `json:"run,omitempty"`
+	DeploymentSpec *appsv1.DeploymentSpec `json:"deploymentSpec,omitempty"`
 }
 
 // TunnelStatus defines the observed state of Tunnel
@@ -153,4 +156,142 @@ type TunnelList struct {
 
 func init() {
 	SchemeBuilder.Register(&Tunnel{}, &TunnelList{})
+}
+
+func (t *Tunnel) BaseTunnelSecret() *corev1.Secret {
+	name := t.Name
+	namespace := t.Namespace
+	if t.Spec.TunnelSecret != nil {
+		if t.Spec.TunnelSecret.Name != "" {
+			name = t.Spec.TunnelSecret.Name
+		}
+		if t.Spec.TunnelSecret.Namespace != "" {
+			namespace = t.Spec.TunnelSecret.Namespace
+		}
+	}
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
+
+func (t *Tunnel) DefaultDeploymentSpec() appsv1.DeploymentSpec {
+	labelSelector := t.DefaultDeploymentLabelSelector()
+	var replicas int32 = 1
+	var optionalOpenshitCA = true
+	var secretName = t.Name
+	if t.Spec.TunnelSecret != nil {
+		secretName = t.Spec.TunnelSecret.Name
+	}
+
+	return appsv1.DeploymentSpec{
+		Replicas: &replicas,
+		Selector: &metav1.LabelSelector{
+			MatchLabels: labelSelector,
+		},
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: labelSelector,
+			},
+			Spec: corev1.PodSpec{
+				// 					Containers: []corev1.Container{{
+				// 						// TODO a bit of customization would be needed here..
+				// 						// Image: "ubi8/ubi-minimal:latest",
+				// 						Image: "redhat/ubi8-minimal",
+				// 						Name:  "cloudflared",
+				// 						Command: []string{"bash", "-c", `
+				// curl -sSL -o /opt/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+				// chmod +x /opt/cloudflared
+				// /opt/cloudflared tunnel --config /config/config.yaml run --credentials-file config/credentials.json`},
+				// 						VolumeMounts: []corev1.VolumeMount{{
+				// 							Name:      "cloudflared-config",
+				// 							MountPath: "/config",
+				// 							ReadOnly:  true,
+				// 						}},
+				// 					}},
+				Containers: []corev1.Container{{
+					// TODO a bit of customization would be needed here..
+					// Image: "ubi8/ubi-minimal:latest",
+					Image: "cloudflare/cloudflared:2022.1.3",
+					Name:  "cloudflared",
+					Args: []string{
+						"tunnel",
+						"--config", "/config/config.yaml",
+						"run",
+						"--credentials-file", "/config/credentials.json",
+					},
+					// Command: []string{
+					// 	"cloudflared",
+					// 	"tunnel",
+					// 	"--config", "/config/config.yaml",
+					// 	"run",
+					// 	"--credentials-file", "config/credentials.json",
+					// },
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "cloudflared-config",
+							MountPath: "/config",
+							ReadOnly:  true,
+						},
+						{
+							Name:      "openshift-ca",
+							MountPath: "/openshift-ca",
+							ReadOnly:  true,
+						},
+					},
+				}},
+				Volumes: []corev1.Volume{
+					{
+						Name: "cloudflared-config",
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: secretName,
+							},
+						},
+					},
+					{
+						Name: "openshift-ca",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "openshift-ca",
+								},
+								Optional: &optionalOpenshitCA,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (t *Tunnel) DefaultDeploymentLabelSelector() map[string]string {
+	return map[string]string{"app": "cloudflared-run", "tunnel-id": t.Status.TunnelID}
+}
+
+func (t *Tunnel) DeploymentForTunnelRun() *appsv1.Deployment {
+	labels := t.DefaultDeploymentLabelSelector()
+
+	baseSecret := t.BaseTunnelSecret()
+	namespace := baseSecret.Namespace
+
+	deploymentSpec := t.DefaultDeploymentSpec()
+	if t.Spec.DeploymentSpec != nil {
+		deploymentSpec = *t.Spec.DeploymentSpec
+		deploymentSpec.Selector.MatchLabels = labels
+		deploymentSpec.Template.ObjectMeta.Labels = labels
+	}
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.Name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: deploymentSpec,
+	}
+	return dep
 }
