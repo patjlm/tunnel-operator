@@ -197,9 +197,14 @@ func (t *Tunnel) DefaultDeploymentSpec() appsv1.DeploymentSpec {
 					Args: []string{
 						"tunnel",
 						"--config", "/config/config.yaml",
+						"--metrics", "0.0.0.0:10000",
 						"run",
 						"--credentials-file", "/config/credentials.json",
 					},
+					Ports: []corev1.ContainerPort{{
+						Name:          "metrics",
+						ContainerPort: 10000,
+					}},
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "cloudflared-config",
