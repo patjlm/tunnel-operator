@@ -191,24 +191,7 @@ func (t *Tunnel) DefaultDeploymentSpec() appsv1.DeploymentSpec {
 				Labels: labelSelector,
 			},
 			Spec: corev1.PodSpec{
-				// 					Containers: []corev1.Container{{
-				// 						// TODO a bit of customization would be needed here..
-				// 						// Image: "ubi8/ubi-minimal:latest",
-				// 						Image: "redhat/ubi8-minimal",
-				// 						Name:  "cloudflared",
-				// 						Command: []string{"bash", "-c", `
-				// curl -sSL -o /opt/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-				// chmod +x /opt/cloudflared
-				// /opt/cloudflared tunnel --config /config/config.yaml run --credentials-file config/credentials.json`},
-				// 						VolumeMounts: []corev1.VolumeMount{{
-				// 							Name:      "cloudflared-config",
-				// 							MountPath: "/config",
-				// 							ReadOnly:  true,
-				// 						}},
-				// 					}},
 				Containers: []corev1.Container{{
-					// TODO a bit of customization would be needed here..
-					// Image: "ubi8/ubi-minimal:latest",
 					Image: "cloudflare/cloudflared:2022.1.3",
 					Name:  "cloudflared",
 					Args: []string{
@@ -217,13 +200,6 @@ func (t *Tunnel) DefaultDeploymentSpec() appsv1.DeploymentSpec {
 						"run",
 						"--credentials-file", "/config/credentials.json",
 					},
-					// Command: []string{
-					// 	"cloudflared",
-					// 	"tunnel",
-					// 	"--config", "/config/config.yaml",
-					// 	"run",
-					// 	"--credentials-file", "config/credentials.json",
-					// },
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "cloudflared-config",

@@ -260,6 +260,7 @@ func (r *TunnelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if tunnel.Spec.Run {
 		// Set the deploymentSpec in the Tunnel resource so it gets easy to be updated
+		// Not sure if that's really a good idea..
 		if tunnel.Spec.DeploymentSpec == nil {
 			spec := tunnel.DefaultDeploymentSpec()
 			tunnel.Spec.DeploymentSpec = &spec
